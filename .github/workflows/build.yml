@@ -14,25 +14,25 @@ jobs:
 
     env:
       PREFIX: ${{ github.workspace }}/local
+      JG_SOURCE: ${{ github.workspace }}/jg
+      JGRF_SOURCE: ${{ github.workspace }}/jgrf
       HOST: x86_64-w64-mingw32
 
     steps:
 
       # ============================================================
-      # SOURCE
+      # CHECKOUT JOLLYGOOD
       # ============================================================
 
       - name: Checkout Jollygood
         uses: actions/checkout@v4
 
       # ============================================================
-      # DEPENDENCIES
+      # INSTALL BUILD TOOLS
       # ============================================================
 
-      - name: Install MinGW and build dependencies
+      - name: Install build dependencies
         run: |
-          sudo dpkg --add-architecture amd64
-
           sudo apt-get update
 
           sudo apt-get install -y \
@@ -51,21 +51,31 @@ jobs:
             nsis
 
       # ============================================================
-      # VERIFY CROSS COMPILER
+      # SHOW ENVIRONMENT
       # ============================================================
 
-      - name: Verify MinGW compiler
+      - name: Show build environment
         run: |
+          echo "Workspace:"
+          echo "$GITHUB_WORKSPACE"
+
+          echo "Prefix:"
+          echo "$PREFIX"
+
+          echo "JG source:"
+          echo "$JG_SOURCE"
+
+          echo "Compiler:"
           x86_64-w64-mingw32-gcc --version
+
+          echo "C++ compiler:"
           x86_64-w64-mingw32-g++ --version
-          x86_64-w64-mingw32-ld --version
-          x86_64-w64-mingw32-ar --version
 
       # ============================================================
-      # DIRECTORIES
+      # CREATE DIRECTORIES
       # ============================================================
 
-      - name: Create local installation directories
+      - name: Create build directories
         run: |
           mkdir -p "$PREFIX/bin"
           mkdir -p "$PREFIX/lib"
@@ -74,93 +84,117 @@ jobs:
           mkdir -p "$PREFIX/share/pkgconfig"
 
       # ============================================================
-      # BUILD JG
-      #
-      # The previous build failed here:
-      #
-      # Package jg was not found
-      #
-      # We build/install JG first and explicitly provide jg.pc.
+      # CLONE JG
       # ============================================================
 
       - name: Clone Jolly Good API
         run: |
-          rm -rf "$HOME/jg"
-          git clone --depth 1 \
+          rm -rf "$JG_SOURCE"
+
+          git clone \
+            --depth 1 \
             https://gitlab.com/jgemu/jg.git \
-            "$HOME/jg"
+            "$JG_SOURCE"
 
-      - name: Inspect JG source
+          echo "JG source:"
+          ls -la "$JG_SOURCE"
+
+      # ============================================================
+      # CHECK JG MAKEFILE
+      # ============================================================
+
+      - name: Inspect JG
         run: |
-          cd "$HOME/jg"
+          cd "$JG_SOURCE"
 
-          echo "===== JG files ====="
-          find . -maxdepth 2 -type f | sort | head -200
+          echo "======================================"
+          echo "JG DIRECTORY"
+          echo "======================================"
 
-          echo "===== JG Makefile ====="
-          sed -n '1,240p' Makefile
+          pwd
+          ls -la
 
-      - name: Build JG for Windows
-        working-directory: ${{ env.HOME }}/jg
-        env:
-          CC: x86_64-w64-mingw32-gcc
-          AR: x86_64-w64-mingw32-ar
-          RANLIB: x86_64-w64-mingw32-ranlib
-          STRIP: x86_64-w64-mingw32-strip
+          echo "======================================"
+          echo "JG MAKEFILE"
+          echo "======================================"
+
+          if [ -f Makefile ]; then
+            sed -n '1,260p' Makefile
+          else
+            echo "No Makefile found."
+          fi
+
+      # ============================================================
+      # BUILD JG
+      # ============================================================
+
+      - name: Build JG
         run: |
+          cd "$JG_SOURCE"
+
+          echo "Building JG..."
+
           make clean || true
 
           make \
-            CC="$CC" \
-            AR="$AR" \
-            RANLIB="$RANLIB" \
-            STRIP="$STRIP"
+            CC=x86_64-w64-mingw32-gcc \
+            AR=x86_64-w64-mingw32-ar \
+            RANLIB=x86_64-w64-mingw32-ranlib \
+            STRIP=x86_64-w64-mingw32-strip
+
+      # ============================================================
+      # INSTALL JG
+      # ============================================================
 
       - name: Install JG
-        working-directory: ${{ env.HOME }}/jg
-        env:
-          CC: x86_64-w64-mingw32-gcc
-          AR: x86_64-w64-mingw32-ar
-          RANLIB: x86_64-w64-mingw32-ranlib
-          STRIP: x86_64-w64-mingw32-strip
         run: |
+          cd "$JG_SOURCE"
+
+          echo "Installing JG..."
+
           make install \
             PREFIX="$PREFIX" \
-            CC="$CC" \
-            AR="$AR" \
-            RANLIB="$RANLIB" \
-            STRIP="$STRIP"
+            CC=x86_64-w64-mingw32-gcc \
+            AR=x86_64-w64-mingw32-ar \
+            RANLIB=x86_64-w64-mingw32-ranlib \
+            STRIP=x86_64-w64-mingw32-strip
 
       # ============================================================
-      # LOCATE jg.pc
+      # FIND JG FILES
       # ============================================================
 
-      - name: Locate jg.pc
+      - name: Find JG installation
         run: |
-          echo "Searching for jg.pc..."
+          echo "======================================"
+          echo "JG INSTALLATION"
+          echo "======================================"
+
+          find "$PREFIX" \
+            -maxdepth 5 \
+            -type f \
+            -print | sort
+
+          echo "======================================"
+          echo "SEARCHING FOR jg.pc"
+          echo "======================================"
 
           find "$PREFIX" \
             -name "jg.pc" \
-            -print || true
-
-          find "$HOME/jg" \
-            -name "jg.pc" \
-            -print || true
+            -print
 
       # ============================================================
-      # FIX PKG-CONFIG
-      #
-      # IMPORTANT:
-      # pkg-config must see the Windows JG installation.
+      # CONFIGURE PKG-CONFIG
       # ============================================================
 
-      - name: Configure pkg-config for JG
+      - name: Configure pkg-config
         run: |
-          echo "PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
-
-          echo "PKG_CONFIG_LIBDIR=$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" >> "$GITHUB_ENV"
 
           echo "PATH=$PREFIX/bin:$PATH" >> "$GITHUB_ENV"
+
+          echo "Configured:"
+          echo "$PREFIX/lib/pkgconfig"
+          echo "$PREFIX/share/pkgconfig"
 
       # ============================================================
       # VERIFY JG
@@ -168,78 +202,90 @@ jobs:
 
       - name: Verify JG pkg-config
         run: |
-          echo "=========================================="
+          echo "======================================"
           echo "PKG_CONFIG_PATH"
-          echo "=========================================="
+          echo "======================================"
 
           echo "$PKG_CONFIG_PATH"
 
-          echo "=========================================="
-          echo "JG PACKAGE"
-          echo "=========================================="
+          echo "======================================"
+          echo "JG PC FILE"
+          echo "======================================"
 
-          pkg-config --modversion jg
+          find "$PREFIX" -name "jg.pc" -print
 
-          echo "=========================================="
+          echo "======================================"
+          echo "PKG-CONFIG SEARCH"
+          echo "======================================"
+
+          pkg-config --debug --modversion jg
+
+          echo "======================================"
           echo "JG CFLAGS"
-          echo "=========================================="
+          echo "======================================"
 
           pkg-config --cflags jg
 
-          echo "=========================================="
+          echo "======================================"
           echo "JG LIBS"
-          echo "=========================================="
+          echo "======================================"
 
           pkg-config --libs jg
 
       # ============================================================
-      # BUILD JOLLYGOOD
+      # CLEAN JOLLYGOOD
       # ============================================================
 
       - name: Clean Jollygood
         run: |
           make clean || true
+
           rm -rf objs
           rm -rf shaders
 
-      - name: Build Jollygood Windows x64
+      # ============================================================
+      # BUILD JOLLYGOOD
+      # ============================================================
+
+      - name: Build Jollygood
         env:
           CC: x86_64-w64-mingw32-gcc
           CXX: x86_64-w64-mingw32-g++
           AR: x86_64-w64-mingw32-ar
           LD: x86_64-w64-mingw32-ld
-          STRIP: x86_64-w64-mingw32-strip
           RANLIB: x86_64-w64-mingw32-ranlib
+          STRIP: x86_64-w64-mingw32-strip
           PKG_CONFIG: pkg-config
 
         run: |
-          echo "=========================================="
-          echo "Building Jollygood"
-          echo "=========================================="
-
-          echo "CC=$CC"
-          echo "PKG_CONFIG=$PKG_CONFIG"
+          echo "======================================"
+          echo "BUILD JOLLYGOOD"
+          echo "======================================"
 
           pkg-config --modversion jg
+
+          pkg-config --cflags jg
+
+          pkg-config --libs jg
 
           make \
             CC="$CC" \
             CXX="$CXX" \
             AR="$AR" \
             LD="$LD" \
-            STRIP="$STRIP" \
             RANLIB="$RANLIB" \
+            STRIP="$STRIP" \
             PKG_CONFIG="$PKG_CONFIG"
 
       # ============================================================
-      # FIND EXECUTABLE
+      # FIND EXE
       # ============================================================
 
-      - name: Find Jollygood executable
+      - name: Find executable
         run: |
-          echo "=========================================="
-          echo "Searching for jollygood.exe"
-          echo "=========================================="
+          echo "======================================"
+          echo "SEARCHING FOR EXECUTABLE"
+          echo "======================================"
 
           find . \
             -type f \
@@ -251,7 +297,7 @@ jobs:
             -print
 
       # ============================================================
-      # VERIFY PE EXECUTABLE
+      # VERIFY EXE
       # ============================================================
 
       - name: Verify Windows executable
@@ -263,55 +309,58 @@ jobs:
           fi
 
           if [ -z "$EXE" ]; then
-            echo "ERROR: jollygood.exe was not produced."
+            echo "ERROR: jollygood.exe was not created."
             exit 1
           fi
 
-          echo "Found:"
+          echo "======================================"
+          echo "JOLLYGOOD FOUND"
+          echo "======================================"
+
           echo "$EXE"
 
-          echo "===== file ====="
           file "$EXE"
-
-          echo "===== MinGW dependencies ====="
-          x86_64-w64-mingw32-objdump -p "$EXE" | \
-            grep "DLL Name" || true
 
           mkdir -p artifact
 
           cp "$EXE" artifact/jollygood.exe
 
       # ============================================================
-      # COPY REQUIRED DLLS
+      # COLLECT MINGW DLLS
       # ============================================================
 
-      - name: Collect MinGW runtime DLLs
+      - name: Collect runtime DLLs
         run: |
-          EXE="artifact/jollygood.exe"
-
-          echo "Collecting runtime DLLs..."
+          echo "Collecting MinGW runtime DLLs..."
 
           for DLL in \
             libgcc_s_seh-1.dll \
             libstdc++-6.dll \
             libwinpthread-1.dll
           do
+
             FOUND="$(find /usr -name "$DLL" 2>/dev/null | head -n 1 || true)"
 
             if [ -n "$FOUND" ]; then
-              echo "Copying $FOUND"
+              echo "Found $DLL:"
+              echo "$FOUND"
+
               cp "$FOUND" artifact/
             fi
+
           done
 
-          echo "Artifact contents:"
+          echo "======================================"
+          echo "FINAL ARTIFACT"
+          echo "======================================"
+
           ls -lah artifact/
 
       # ============================================================
       # UPLOAD
       # ============================================================
 
-      - name: Upload Jollygood Windows build
+      - name: Upload Jollygood Windows x64
         uses: actions/upload-artifact@v4
         with:
           name: jollygood-windows-x64
