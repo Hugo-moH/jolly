@@ -1,0 +1,325 @@
+The Jolly Good Reference Frontend
+---------------------------------
+The Jolly Good Reference Frontend is the simplest possible frontend to The
+Jolly Good API. It may be used to run emulators built as shared objects, or
+as a "white-label" frontend for statically linked standalone emulators.
+
+This repository lives at https://gitlab.com/jgemu/jgrf
+
+Compiling
+---------
+Make sure you have The Jolly Good API's header files installed. If you did
+not install them, you will be required to include their path in CFLAGS.
+
+You will also require pkgconf/pkg-config, and development packages for SDL3,
+SpeexDSP, and libepoxy. For the experimental Vulkan renderer, you will need
+additional libraries and tools (vulkan-headers, glslangValidator, etc).
+
+Options:
+  ENABLE_VULKAN - Set non-zero to build the experimental Vulkan renderer
+  USE_EXTERNAL_MD5 - Set non-zero to use an external libcrypto
+  USE_EXTERNAL_MINIZ - Set non-zero to use an external miniz
+  BUILD_STATIC - Set to the path of a core built with a static JG archive to
+    build a standalone binary
+
+Linux:
+  make
+
+macOS:
+  make
+
+BSD:
+  gmake
+
+Windows (MSYS2):
+  make
+
+Cross Compile:
+(For example compiling on Linux for MinGW)
+  CC=x86_64-w64-mingw32-cc \
+  PKG_CONFIG=x86_64-w64-mingw32-pkg-config \
+  STRIP=x86_64-w64-mingw32-strip \
+  make
+
+The build will output an executable named "jollygood".
+The program may be run locally, or installed system-wide using the "install"
+target. For command line usage instructions, execute the binary with no
+arguments or the -h switch.
+
+Configuration (Generic frontend)
+--------------------------------
+Configuration files are located in:
+  ~/.config/jollygood
+
+The following filenames are used:
+  settings.ini           - General settings
+  corename_input.ini     - Input definitions for a specific emulator core
+  corename.ini           - Core-specific overrides to general settings
+                         - Emulator settings listed in [corename] section
+
+User data is located in:
+  ~/.local/share/jollygood
+
+The User data directory contains the following subdirectories:
+  assets/corename/       - User assets such as sample data for Nestopia JG
+  bios/                  - Directory the frontend will load BIOS images from
+  cheats/corename/       - Directory the frontend will load Cheat files from
+  save/corename/         - SRAM, Memory Card, or other types of save data
+  screenshots/           - Screenshots with a timestamp and random number
+  state/corename/        - Save States
+
+Cores may be used locally by placing their build output directories into a
+"cores/" directory created in the jgrf source directory:
+mkdir cores
+cp -r /path/to/core cores/
+
+Cores that exist locally will be preferred over cores installed system-wide.
+
+Configuration (Statically linked standalone builds)
+---------------------------------------------------
+Static builds act as a standalone emulator, where "corename" is the name of the
+emulator, ex. bsnes, jollycv, nestopia.
+
+Configuration files are located in:
+  ~/.config/corename     - Static builds
+
+The following filenames are used:
+  corename_input.ini     - Input definitions for a specific emulator core
+  corename.ini           - Core-specific settings
+                         - Emulator settings listed in [corename] section
+
+Static builds use combined settings in "corename.ini" only.
+
+User data is located in:
+  ~/.local/share/corename
+
+The User data directory contains the following subdirectories:
+  assets/                - User assets such as sample data for Nestopia JG
+  bios/                  - Directory the frontend will load BIOS images from
+  cheats/                - Directory the frontend will load Cheat files from
+  save/                  - SRAM, Memory Card, or other types of save data
+  screenshots/           - Screenshots with a timestamp and random number
+  state/                 - Save States
+
+Input
+-----
+Frontend Key Definitions:
+ESC                     - Quit
+TAB                     - Open Menu
+`                       - Fast-forward
+F1                      - Soft Reset
+F2                      - Hard Reset
+F5                      - Save State (Slot 0)
+F6                      - Save State (Slot 1)
+F7                      - Load State (Slot 0)
+F8                      - Load State (Slot 1)
+F9                      - Screenshot
+F12                     - Toggle Cheats On/Off
+F                       - Toggle Fullscreen/Windowed Mode
+M                       - Toggle Audio Playback (Mute/Unmute)
+
+Menu Key Definitions:
+ESC                     - Exit Menu
+TAB/LEFT                - Back
+ENTER/RIGHT             - Activate selected menu item
+UP/DOWN                 - Navigate Up and Down
+
+Input for games is not preconfigured. To configure a device:
+  SHIFT+[Port Number] ex. SHIFT+1, SHIFT+2
+
+To toggle hotkey processing when using an emulated keyboard:
+  SHIFT+TAB
+
+Effort has been made to ensure emulator cores know what devices must be plugged
+in. Console output will indicate which emulated device is plugged into which
+emulated port.
+
+Axis and Button input is considered separate. Digital buttons cannot be
+assigned to emulated axes. This is a design choice. Use the ESC key to skip
+defining axes if you do not have a physical input devices with axes. Ideally,
+buy a budget USB gamepad with analog sticks/triggers if you want to play games
+that require analog input. The reverse, assigning physical axes to emulated
+digital buttons, is possible.
+
+Force Feedback data is sent to the physical device that handles the emulated
+device's axis definitions. Currently, this only exists in PlayStation and Game
+Boy games. In the case of the Game Boy, there is only a single controller, so
+force feedback data is sent to this controller.
+
+Settings
+--------
+Below is an example of the General Settings configuration file, with defaults:
+
+[audio]
+;N = Resampler Quality (0-10)
+rsqual = 3
+
+[video]
+;0 = OpenGL Core Profile, 1 = OpenGL ES, 2 = OpenGL Compatibility Profile
+;3 = Vulkan
+api = 0
+
+;0 = Disable, 1 = Enable
+fullscreen = 0
+
+;N = Scale video output by N (1-8)
+scale = 3
+
+;0 = Nearest Neighbour, 1 = Linear, 2 = Sharp Bilinear, 3 = AANN,
+;4 = CRT-Yee64, 5 = CRTea, 6 = LCD
+shader = 3
+
+; Settings for CRTea
+;0 = Scanlines, 1 = Aperture Grille Lite, 2 = Aperture Grille,
+;3 = Shadow Mask, 4 = Custom
+crtea_mode = 2
+
+; Settings for CRTea Custom Mode
+;0 = Scanlines, 1 = Aperture Grille Lite, 2 = Aperture Grille, 3 = Shadow Mask
+crtea_masktype = 2
+
+;N = Mask Strength
+crtea_maskstr = 5
+
+;N = Scanline Strength
+crtea_scantr = 6
+
+;N = Sharpness
+crtea_sharpness = 7
+
+;N = CRT Screen Curve Strength
+crtea_curve = 2
+
+;N = CRT Corner Size
+crtea_corner = 3
+
+;N = Trinitron Curve Strength
+crtea_tcurve = 10
+
+[input]
+;N = Deadzone Size
+axis_deadzone = 5
+
+[misc]
+;0 = Disabled, 1 = Enabled
+cheatauto = 0
+
+;0 = Debug, 1 = Info, 2 = Warning, 3 = Error
+corelog = 1
+
+;0 = Debug, 1 = Info, 2 = Warning, 3 = Error
+frontendlog = 1
+
+;N = Text Scale
+textscale = 2
+
+;0 = 6x8, 1 = 8x8
+font = 0
+
+The above configuration settings may be overridden in a core specific
+configuration file. Additionally, you may add a section for Emulator Settings.
+
+The following example is for the JollyCV core:
+
+[jollycv]
+;0 = Show Overscan, 1 = Mask Overscan
+mask_overscan = 0
+
+;0 = TeaTime, 1 = SYoung
+palette = 0
+
+;N = Resampler Quality (0-10)
+rsqual = 3
+
+;0 = NTSC, 1 = PAL
+region = 0
+
+Environment Variables
+---------------------
+XDG_CONFIG_HOME         - The XDG base directory. This is the path is used to
+                          find the frontend and core configuration files. Set by
+                          default to $HOME/.config/jollygood/
+
+XDG_DATA_HOME           - The directory for user-specific data files. This path
+                          is used to find data files used by the cores. Set by
+                          default $HOME/.local/share/jollygood/
+
+JOLLYGOOD_CORE_DIRS     - A sequence of path prefixes to tell the frontend which
+                          directories to search for Jolly Good core modules. If
+                          set, these directories take precedence when searching
+                          for core modules to load.
+
+JOLLYGOOD_ASSET_DIRS    - A sequence of path prefixes to tell the frontend which
+                          directories to search for asset-containing
+                          subdirectories. If set, these directories take
+                          precedence when searching for the location of core
+                          assets.
+
+To specify multiple JOLLYGOOD_CORE_DIRS or JOLLYGOOD_ASSET_DIRS values, use
+a colon (:) separator between the path names on a UNIX system, and use a
+semicolon (;) separator between path names on a Windows system.
+
+Cheats
+------
+When a core supports cheats, the cheat file must be named the same as the
+game, but with a file extension of ".json". The file must be located in the
+cheats directory for the core, for example:
+  ~/.local/share/jollygood/cheats/corename/gamename.json    - Generic frontend
+  ~/.local/share/corename/cheats/gamename.json              - Static builds
+
+The file must be formatted as such:
+
+{"cheats":[
+  {"codes":["CHEAT001"], "enabled":true, "desc":"Single-code Cheat"},
+  {"codes":["CHEAT002"], "enabled":false, "desc":"Disabled Single-code Cheat"},
+  {"codes":["CHEAT003", "CHEAT004"], "enabled":true, "desc":"Multi-code Cheat"},
+//  {"codes":["CHEAT005"], "enabled":true, "desc":"Commented Cheat"},
+  {"codes":["CHEAT006"], "enabled":true, "desc":"Final Cheat has no comma"}
+]}
+
+The format for the cheat codes is different for each system, and some systems
+support multiple types of codes. All codes are represented as JSON strings.
+
+Copyright
+---------
+The Jolly Good Reference Frontend
+  Copyright (c) 2020-2026, Rupert Carmichael (BSD-3-Clause)
+  See LICENSE
+
+AntiAliased Nearest Neighbor Fragment Shader
+  Copyright (c) 2015 nyanpasu64 and wareya (MIT)
+
+CRT-Yee64 Fragment Shader
+  Copyright (c) 2017 Lucas Melo (MIT)
+
+ezmenu
+  Copyright (c) 2022 rofl0r (MIT)
+
+LodePNG
+  Copyright (c) 2005-2020 Lode Vandevenne (Zlib)
+  See deps/lodepng.c
+
+MD5 Message-Digest Algorithm (RFC 1321) Implementation
+  Public Domain or BSD-like license without advertising clause
+  See deps/md5.c
+
+miniz
+  Copyright 2013-2014 RAD Game Tools and Valve Software (MIT)
+  Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC (MIT)
+  See deps/miniz/miniz.c (https://github.com/richgel999/miniz)
+
+musl getopt, memmem implementations
+  Copyright © 2005-2023 Rich Felker, et al. (MIT)
+  See deps/musl_getopt.c, deps/musl_memmem.c
+
+parson
+  Copyright (c) 2012 - 2023 Krzysztof Gabis (MIT)
+  See deps/parson.c
+
+tconfig
+  Copyright (c) 2019 Justin Kinnaird (MIT)
+  See deps/tconfig.c
+
+Wave Writer
+  Public Domain (CC0-1.0)
+  See deps/wave_writer.c

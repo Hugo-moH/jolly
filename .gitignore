@@ -1,0 +1,5 @@
+*.exe
+jollygood
+cores/
+objs/
+/shaders/

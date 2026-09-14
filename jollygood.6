@@ -1,0 +1,518 @@
+.\" jollygood.6
+.\" Copyright (c) 2022-2026 Rupert Carmichael
+.\" All rights reserved.
+.\"
+.\" Redistribution and use of this script, with or without modification, is
+.\" permitted provided that the following conditions are met:
+.\"
+.\" 1. Redistributions of this script must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR "AS IS" AND ANY EXPRESS OR IMPLIED
+.\" WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+.\" MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO
+.\" EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+.\" SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+.\" PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+.\" OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+.\" WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+.\" OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+.\" ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd July 2, 2026
+.Dt JOLLYGOOD 6
+.Os
+.Sh NAME
+.Nm jollygood
+.Nd The Jolly Good Reference Frontend
+.Sh SYNOPSIS
+.Nm
+.Op Fl abcfghorsvwx
+.Op Fl a Ar value
+.Op Fl b Ar frames
+.Op Fl c Ar corename
+.Op Fl e Ar sysname
+.Op Fl g Ar value
+.Op Fl o Ar file
+.Op Fl r Ar value
+.Op Fl s Ar value
+.Op Fl x Ar value
+.Op Ar
+.Sh DESCRIPTION
+The Jolly Good Reference Frontend is the simplest possible frontend for The
+Jolly Good API.
+It is intended to remain this way, and to avoid unnecessary feature creep,
+ensuring that it is easy to learn from.
+In order to deliver a smooth and enjoyable experience, a few slightly more
+advanced features are required.
+In these instances, effort has been taken to ensure readability and
+understandability of the code that implements these concepts.
+.Pp
+The options are as follows:
+.Bl -tag -width indent
+.It Fl a , -video Ar value
+Specify which Video API to use.
+.D1 0 = OpenGL Core Profile
+.D1 1 = OpenGL ES
+.D1 2 = OpenGL Compatibility Profile
+.D1 3 = Vulkan
+.It Fl b , -bmark Ar frames
+Run N frames in Benchmark mode.
+.It Fl c , -core Ar corename
+Specify which core to use.
+.It Fl e , -sys Ar sysname
+Specify which system to emulate.
+.It Fl f , -fullscreen
+Start in Fullscreen mode.
+.It Fl g , -cheatauto Ar value
+Auto-activate cheats if present.
+.D1 0 = Disabled
+.D1 1 = Enabled
+.It Fl h , -help
+Show Usage.
+.It Fl o , -wave Ar file
+.It Fl r , -rsqual Ar value
+Resampler Quality (0 to 10).
+.It Fl s , -shader Ar value
+Select a Post-processing shader.
+.D1 0 = Nearest Neighbour (None)
+.D1 1 = Linear
+.D1 2 = Sharp Bilinear
+.D1 3 = Anti-Aliased Nearest Neighbour
+.D1 4 = CRT-Yee64
+.D1 5 = CRTea
+.D1 6 = LCD
+.It Fl v , -verbose
+Enable verbose log output for core and frontend.
+.It Fl w , -window
+Start in Windowed mode.
+.It Fl x , -scale Ar value
+Video Scale Factor (1 to 8).
+.El
+.Ss CONFIGURATION FILES
+Configuration files are located in
+.Pa $XDG_CONFIG_HOME/jollygood/ .
+.Pp
+The following filenames are used:
+.Pp
+.Bl -tag -width <TAB><TAB> -offset indent -compact
+.It Pa settings.ini
+General settings.
+.It Pa corename_input.ini
+Input definitions for a specific emulator core.
+.It Pa corename.ini
+Core-specific overrides to general settings.
+.El
+.Pp
+User data is located in
+.Pa $XDG_DATA_HOME/jollygood/ .
+.Pp
+The User data directory contains the following subdirectories:
+.Pp
+.Bl -tag -width <TAB><TAB> -offset indent -compact
+.It Pa assets/corename/
+User assets such as sample data for Nestopia JG.
+.It Pa bios/
+Directory the frontend will load BIOS images from.
+.It Pa cheats/corename/
+Directory the frontend will load Cheat files from.
+.It Pa save/corename/
+SRAM, Memory Card, or other types of save data.
+.It Pa screenshots/
+Screenshots with a timestamp and random number.
+.It Pa state/corename/
+Save States.
+.El
+.Pp
+Cores may be used locally by placing their build output directories into a
+.Pa cores/
+directory created in the jgrf source directory.
+.Bd -literal -offset inden
+$ mkdir cores
+$ cp -r /path/to/core/ cores/
+.Ed
+.Pp
+Cores that exist locally will be preferred over cores installed system-wide.
+.Ss INPUT
+Frontend Key Definitions:
+.Pp
+.Bl -tag -width <TAB><TAB> -offset indent -compact
+.It Cm ESC
+Quit
+.It Cm TAB
+Open Menu
+.It Cm `
+Fast-forward
+.It Cm F1
+Soft Reset
+.It Cm F2
+Hard Reset
+.It Cm F5
+Save State (Slot 0)
+.It Cm F6
+Save State (Slot 1)
+.It Cm F7
+Load State (Slot 0)
+.It Cm F8
+Load State (Slot 1)
+.It Cm F9
+Screenshot
+.It Cm F12
+Toggle Cheats On/Off
+.It Cm F
+Toggle Fullscreen/Windowed Mode
+.It Cm M
+Toggle Audio Playback (Mute/Unmute)
+.It Cm Shift+TAB
+Toggle Hotkey Processing (Use with emulated keyboards)
+.It Cm Shift Ns + Ns Aq Cm Port Number
+Configure Input
+.El
+.Pp
+Menu Key Definitions:
+.Pp
+.Bl -tag -width <TAB><TAB> -offset indent -compact
+.It Cm ESC
+Exit Menu
+.It Cm TAB/LEFT
+Back
+.It Cm ENTER/RIGHT
+Activate selected menu item
+.It Cm UP/DOWN
+Navigate Up and down
+.El
+.Pp
+Input for games is not preconfigured.
+For example use
+.Cm Shift Ns + Ns Cm 1
+for the first controller port and
+.Cm Shift Ns + Ns Cm 2
+for the second controller port.
+.Pp
+Effort has been made to ensure emulator cores know what devices must be plugged
+in.
+Console output will indicate which emulated device is plugged into which
+emulated port.
+.Pp
+Axis and Button input is considered separate.
+Digital buttons cannot be assigned to emulated axes.
+This is a design choice.
+Use the ESC key to skip defining axes if you do not have a physical input
+devices with axes.
+Ideally, buy a budget USB gamepad with analog sticks/triggers if you want to
+play games that require analog input.
+The reverse, assigning physical axes to emulated digital buttons, is possible.
+.Pp
+Force Feedback data is sent to the physical device that handles the emulated
+device's axis definitions.
+Currently, this only exists in PlayStation and Game Boy games.
+In the case of the Game Boy, there is only a single controller, so force
+feedback data is sent to this controller.
+.Ss SETTINGS
+The General Settings configuration file accepts the following sections.
+.Pp
+.Bl -tag -width <TAB><TAB> -offset indent -compact
+.It Ic [audio]
+.Bl -tag -width <TAB> -offset indent -compact
+.It Ic rsqual = Aq Cm 0-10
+Resampler Quality
+.Aq Default:  3
+.El
+.It Ic [video]
+.Bl -tag -width <TAB> -offset indent -compact
+.It Ic api = Aq Cm 0-2
+Video Driver Profile
+.Aq Default: 0
+.D1 0 = OpenGL Core Profile
+.D1 1 = OpenGL ES
+.D1 2 = OpenGL Compatibility Profile
+.D1 3 = Vulkan
+.It Ic scale = Cm N
+Video Scale Factor
+.Aq Default: 3
+.It Ic shader = Aq Cm 0-6
+Post-processing shader
+.Aq Default: 3
+.D1 0 = Nearest Neighbour
+.D1 1 = Linear
+.D1 2 = Sharp Bilinear
+.D1 3 = AANN
+.D1 4 = CRT-Yee64
+.D1 5 = CRTea
+.D1 6 = LCD
+.It Ic crtea_mode = Aq Cm 0-4
+CRTea custom mode
+.Aq Default: 2
+.D1 0 = Scanlines
+.D1 1 = Aperture Grille Lite
+.D1 2 = Aperture Grille
+.D1 3 = Shadow Mask
+.D1 4 = Custom
+.It Ic crtea_masktype = Aq Cm 0-3
+CRTea custom mode settings
+.Aq Default: 2
+.D1 0 = Scanlines
+.D1 1 = Aperture Grille Lite
+.D1 2 = Aperture Grille
+.D1 3 = Shadow Mask
+.It Ic crtea_maskstr = Cm N
+CRTea mask strength
+.Aq Default: 5
+.It Ic crtea_scantr = Cm N
+CRTea scanline strength
+.Aq Default: 6
+.It Ic crtea_sharpness = Cm N
+CRTea sharpness.
+.Aq Default: 7
+.It Ic crtea_curve = Cm N
+CRTea Screen Curve Strength
+.Aq Default: 2
+.It Ic crtea_corner = Cm N
+CRtea Corner Size
+.Aq Default: 3
+.It Ic crtea_tcurve = Cm N
+CRTea Trinitron Curve Strength
+.Aq Default: 10
+.El
+.It Ic [input]
+.Bl -tag -width <TAB> -offset indent -compact
+.It Ic axis_deadzone = Cm 0-9
+Axis Deadzone Size
+.Aq Default: 5
+.El
+.It Ic [misc]
+.Bl -tag -width <TAB> -offset indent -compact
+.It Ic cheatauto = Aq Cm 0-1
+Cheat Auto-activation at boot
+.Aq Default: 0
+.D1 0 = Disabled
+.D1 1 = Enabled
+.It Ic corelog = Aq Cm 0-3
+Core logging options
+.Aq Default: 1
+.D1 0 = Debug
+.D1 1 = Info
+.D1 2 = Warning
+.D1 3 = Error
+.It Ic frontendlog = Aq Cm 0-3
+Frontend logging options
+.Aq Default: 1
+.D1 0 = Debug
+.D1 1 = Info
+.D1 2 = Warning
+.D1 3 = Error
+.It Ic textscale = Cm N
+Text Scale Factor
+.Aq Default: 2
+.El
+.El
+.Pp
+The settings may be overridden in a core specific configuration file.
+Additionally, you may add a section for Emulator Settings.
+.Ss CHEATS
+When a core supports cheats, the cheat file must be named the same as the game,
+but with a file extension of ".json".
+The file must be located in the cheats directory for the core, for example:
+.Pp
+.D1 Pa ~/.local/share/jollygood/cheats/corename/gamename.json
+.Pp
+The file must be formatted as such:
+.Bd -literal -offset indent
+{"cheats":[
+  {"codes":["CHEAT001"], "enabled":true, "desc":"Single-code Cheat"},
+  {"codes":["CHEAT002"], "enabled":false, "desc":"Disabled Single-code Cheat"},
+  {"codes":["CHEAT003", "CHEAT004"], "enabled":true, "desc":"Multi-code Cheat"},
+//  {"codes":["CHEAT005"], "enabled":true, "desc":"Commented Cheat"},
+  {"codes":["CHEAT006"], "enabled":true, "desc":"Final Cheat has no comma"}
+]}
+.Ed
+.Pp
+The format for the cheat codes is different for each system, and some systems
+support multiple types of codes.
+All codes are represented as JSON strings.
+.Sh ENVIRONMENT
+.Nm
+supports the following environment variables.
+.Pp
+.Bl -tag -width <TAB><TAB><TAB> -offset indent -compact
+.It Ev XDG_CONFIG_HOME
+The XDG base directory.
+This is the path is used to find the frontend and core configuration files.
+Set by default to
+.Pa $HOME/.config/jollygood/ .
+.It Ev XDG_DATA_HOME
+The directory for user-specific data files.
+This path is used to find data files used by the cores.
+Set by default to
+.Pa $HOME/.local/share/jollygood/ .
+.It JOLLYGOOD_CORE_DIRS
+A sequence of path prefixes to tell the frontend which directories to search
+for Jolly Good core modules.
+If set, these directories take precedence when searching for core modules to
+load.
+Include a colon (:) separator between the path names on a UNIX system, and use
+the semicolon (;) separator between path names on a Windows system.
+.It JOLLYGOOD_ASSET_DIRS
+A sequence of path prefixes to tell the frontend which directories to search
+for asset-containing subdirectories.
+If set, these directories take precedence when searching for the location of
+core assets.
+Include a colon (:) separator between the path names on a UNIX system, and use
+the semicolon (;) separator between path names on a Windows system.
+.El
+.Sh EXAMPLES
+.Bl -tag -width indent
+.It Nm
+Print the frontend's help and exit.
+.It Nm Ar file
+Run the rom file from the command line.
+.It Nm Fl c Cm mednafen Ar rom.sfc
+Run a Super Nintendo rom using the Faust emulator included in the Mednafen core
+instead of the default BSNES core.
+.It Nm Fl c Cm bsnes Qo Ar Super Game Boy (World) (Rev 2).sfc Qc Ar rom.gb
+Run a Game Boy rom using the BSNES core and an auxiliary Super Game Boy Rom.
+.It Nm Fl c Cm sameboy Ar rom1.gb Ar rom2.gb
+Run a multiplayer linked game with two Game Boy roms using the SameBoy core.
+.It Nm Fl a Cm 2 Ar file
+Run the frontend in a OpenGL Compatibility Profile.
+.It Cm time Nm Fl b Cm 1000 Ar file
+Run the frontend for
+.Cm 1000
+frames in Benchmark mode.
+.It Nm Fl f Ar file
+Run the frontend in Fullscreen mode.
+.It Nm Fl o Pa rom.wav Ar file
+Output the rom audio to
+.Pa rom.wav .
+.It Nm Fl r Cm 3 Ar file
+Run the frontend with Resampler Quality set to
+.Cm 3 .
+.It Nm Fl s Cm 5 Ar file
+Run the frontend using the CRTea shader.
+.It Nm Fl x Cm 3 Ar
+Run the frontend wth a Video Scale Factor of
+.Cm 3 .
+.El
+.Pp
+Example
+.Pa settings.ini
+configuration file for the
+.Nm
+frontend.
+.Bd -literal -offset indent
+[audio]
+;N = Resampler Quality (0-10)
+rsqual = 3
+
+[video]
+;0 = OpenGL Core Profile, 1 = OpenGL ES, 2 = OpenGL Compatibility Profile
+;3 = Vulkan
+api = 0
+
+;0 = Disable, 1 = Enable
+fullscreen = 0
+
+;N = Scale video output by N (1-8)
+scale = 3
+
+;0 = Nearest Neighbour, 1 = Linear, 2 = Sharp Bilinear, 3 = AANN,
+;4 = CRT-Yee64, 5 = CRTea, 6 = LCD
+shader = 3
+
+; Settings for CRTea
+;0 = Scanlines, 1 = Aperture Grille Lite, 2 = Aperture Grille,
+;3 = Shadow Mask, 4 = Custom
+crtea_mode = 2
+
+; Settings for CRTea Custom Mode
+;0 = Scanlines, 1 = Aperture Grille Lite, 2 = Aperture Grille, 3 = Shadow Mask
+crtea_masktype = 2
+
+;N = Mask Strength
+crtea_maskstr = 5
+
+;N = Scanline Strength
+crtea_scantr = 6
+
+;N = Sharpness
+crtea_sharpness = 7
+
+;N = CRT Screen Curve Strength
+crtea_curve = 2
+
+;N = CRT Corner Size
+crtea_corner = 3
+
+;N = Trinitron Curve Strength
+crtea_tcurve = 10
+
+[misc]
+;0 = Disabled, 1 = Enabled
+cheatauto = 0
+
+;0 = Debug, 1 = Info, 2 = Warning, 3 = Error
+corelog = 1
+
+;0 = Debug, 1 = Info, 2 = Warning, 3 = Error
+frontendlog = 1
+
+;N = Text Scale
+textscale = 2
+.Ed
+.Pp
+Example
+.Pa jollycv.ini
+configuration file for the JollyCV core.
+.Bd -literal -offset indent
+[jollycv]
+;0 = Show Overscan, 1 = Mask Overscan
+mask_overscan = 0
+
+;0 = TeaTime, 1 = SYoung
+palette = 0
+
+;N = Resampler Quality (0-10)
+rsqual = 3
+
+;0 = NTSC, 1 = PAL
+region = 0
+.Ed
+.Pp
+Example
+.Pa input_snes.ini
+configuration file for all Super Nintendo emulators.
+.Bd -literal -offset indent
+[snespad1]
+Up = j0a1-
+Down = j0a1+
+Left = j0a0-
+Right = j0a0+
+Select = j0b4
+Start = j0b5
+A = j0b1
+B = j0b2
+X = j0b0
+Y = j0b3
+L = j0b6
+R = j0b7
+.Ed
+.Pp
+Example
+.Pa cheats/bsnes/Super Castlevania IV (USA).json
+cheat file for the
+.Pa Super Castlevania IV (USA).sfc
+rom and the BSNES core.
+.Bd -literal -offset indent
+{"cheats":[
+  {"codes":["DD24-AFD7"], "enabled":true, "desc":"Fully Powered Up Whip With First Power Up"},
+//  {"codes":["bbb3-d40f"], "enabled":true, "desc":"99 Hearts"}
+//  {"codes":["0094EAFF"], "enabled":true, "desc":"1st heart = 99 Hearts"},
+  {"codes":["028005=80"], "enabled":true, "desc":"Stop Timer"}
+]}
+.Ed
+.Sh AUTHORS
+.An -nosplit
+The Jolly Good API and Reference Frontend were written by
+.An Rupert Carmichael .
+.Sh BUGS
+.Lk https://gitlab.com/jgemu/jgrf/-/issues "Issue tracker"

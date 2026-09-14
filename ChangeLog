@@ -1,0 +1,85 @@
+Version 2.0.1
+-------------
+ - Build improvements
+ - Fix possible segfaults when using core-allocated video buffers
+ - Update miniz to 3.1.2
+ - Add 64DD detection
+ - Show Vulkan renderer option only when actually enabled at build time
+
+Version 2.0.0
+-------------
+ - Rewrite OSD and text rendering completely, add OSD background effects
+ - Add pause function and hotkey
+ - Define inputs by core, not by system, requiring inputs to be reconfigured
+ - Add DIP Switch support
+ - Add BIOS check and supported systems list to debug logs
+ - Improve media swapping (CDs, Disks)
+ - Fix inverted analog axes on macOS
+ - Add experimental, but quite functional Vulkan renderer
+ - Add license dump to see core licenses on the console
+
+Version 1.4.0
+-------------
+ - Port to SDL3
+ - macOS compatibility fixes
+ - Linux KMS improvements
+ - Add Neo Geo CD detection
+
+Version 1.3.0
+-------------
+ - Code and build cleanups
+ - Allow pixel format changes during runtime
+ - Modify rumble callback to allow stopping the rumble
+ - Add N64 ROM detection
+ - Rework input configuration to better handle triggers on diverse gamepads
+
+Version 1.2.2
+-------------
+ - Build cleanup
+ - Add NSF and My Vision detection
+ - Add hotkey toggling for use with emulated keyboards
+
+Version 1.2.1
+-------------
+ - Use calloc vs malloc in tconfig
+ - Build improvements
+ - Code quality improvement in path construction code
+ - Add PC-FX detection
+ - Improve core detection to allow loading the best installed core per system
+ - Allow the emulated system to be specified on the command line
+
+Version 1.2.0
+-------------
+ - Input configuration bugfixes
+ - Fix bug with OSD text being captured in screenshots
+ - Add OSD for OpenGL Compatibility Profile
+ - Set OpenGL Core Profile version minimum from 3.3 to 3.1
+ - Code quality improvements in ezmenu
+ - Improve handling of directory path creation and discovery
+ - Support environment variables for core and asset directory search paths
+ - Switch from parg to musl's getopt implemention for command line parsing
+ - Clean up and improve command line parsing code
+
+Version 1.1.0
+-------------
+ - Allow statically linking to Jolly Good cores to create standalone binaries
+ - Use path relative to the current working directory when loading local assets
+ - Build improvements
+ - General code quality improvements
+ - Prevent the menu system from being on the wrong level after input config
+
+Version 1.0.2
+-------------
+ - Update to latest miniz
+ - Change default Neo Geo emulator name
+ - Differentiate first-boot resets from hard resets
+
+Version 1.0.1
+-------------
+ - Documentation updates
+ - Add detection for .neo format Neo Geo romsets
+ - Fix potential buffer overflow in MD5 digest conversion to string
+
+Version 1.0.0
+-------------
+ - Initial tagged release

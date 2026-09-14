@@ -1,0 +1,17 @@
+# https://www.freedesktop.org/wiki/Specifications/desktop-entry-spec/
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=jollygood
+GenericName=Frontend for The Jolly Good API
+NoDisplay=true
+Comment=The Jolly Good Reference Frontend
+Icon=jollygood
+TryExec=jollygood
+Exec=jollygood %F
+Terminal=false
+MimeType=application/x-atari-7800-rom;application/x-atari-lynx-rom;application/x-fds-disk;application/x-gameboy-rom;application/x-gamegear-rom;application/x-gba-rom;application/x-genesis-32x-rom;application/x-genesis-rom;application/x-nes-rom;application/x-neo-geo-pocket-rom;application/x-sms-rom;
+Categories=Game;Emulator;
+Keywords=emulator;
+StartupNotify=false
+StartupWMClass=jollygood
