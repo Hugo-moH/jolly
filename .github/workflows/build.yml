@@ -2,13 +2,9 @@ name: Build Jollygood Windows x64
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-  pull_request:
 
 jobs:
-  build-windows:
+  build:
     name: Jollygood Windows x64
     runs-on: ubuntu-22.04
 
@@ -19,19 +15,17 @@ jobs:
       SDL_SOURCE: ${{ github.workspace }}/SDL
       SPEEX_SOURCE: ${{ github.workspace }}/speexdsp
 
-      HOST: x86_64-w64-mingw32
-
     steps:
 
       # ============================================================
-      # CHECKOUT JOLLYGOOD
+      # CHECKOUT
       # ============================================================
 
       - name: Checkout Jollygood
         uses: actions/checkout@v4
 
       # ============================================================
-      # HOST BUILD DEPENDENCIES
+      # TOOLS
       # ============================================================
 
       - name: Install build tools
@@ -50,17 +44,16 @@ jobs:
             ninja-build \
             meson \
             python3 \
-            python3-pip \
             mingw-w64 \
             gcc-mingw-w64-x86-64 \
             g++-mingw-w64-x86-64 \
             binutils-mingw-w64-x86-64
 
       # ============================================================
-      # CREATE PREFIX
+      # DIRECTORIES
       # ============================================================
 
-      - name: Create installation prefix
+      - name: Create directories
         run: |
           mkdir -p "$PREFIX/bin"
           mkdir -p "$PREFIX/include"
@@ -69,40 +62,55 @@ jobs:
           mkdir -p "$PREFIX/share/pkgconfig"
 
       # ============================================================
-      # CROSS COMPILER
+      # CREATE MESON CROSS FILE
       # ============================================================
 
-      - name: Verify MinGW
+      - name: Create MinGW Meson cross file
         run: |
-          x86_64-w64-mingw32-gcc --version
-          x86_64-w64-mingw32-g++ --version
-          x86_64-w64-mingw32-ar --version
-          x86_64-w64-mingw32-ranlib --version
-          x86_64-w64-mingw32-strip --version
+          cat > "$GITHUB_WORKSPACE/meson-mingw.ini" <<EOF
+          [binaries]
+          c = 'x86_64-w64-mingw32-gcc'
+          cpp = 'x86_64-w64-mingw32-g++'
+          ar = 'x86_64-w64-mingw32-ar'
+          strip = 'x86_64-w64-mingw32-strip'
+          windres = 'x86_64-w64-mingw32-windres'
+          pkgconfig = 'pkg-config'
 
-      # ============================================================
-      # CROSS PKG-CONFIG
-      # ============================================================
+          [properties]
+          needs_exe_wrapper = true
 
-      - name: Configure cross pkg-config
-        run: |
-          CROSS_PKG_CONFIG="$GITHUB_WORKSPACE/cross-pkg-config"
-
-          cat > "$CROSS_PKG_CONFIG" <<'EOF'
-          #!/bin/sh
-
-          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/local/lib/pkgconfig:$GITHUB_WORKSPACE/local/share/pkgconfig"
-          export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/local/lib/pkgconfig:$GITHUB_WORKSPACE/local/share/pkgconfig"
-          export PKG_CONFIG_SYSROOT_DIR=""
-
-          exec pkg-config "$@"
+          [host_machine]
+          system = 'windows'
+          cpu_family = 'x86_64'
+          cpu = 'x86_64'
+          endian = 'little'
           EOF
 
-          chmod +x "$CROSS_PKG_CONFIG"
+          echo "======================================"
+          echo "MESON CROSS FILE"
+          echo "======================================"
 
-          echo "CROSS_PKG_CONFIG=$CROSS_PKG_CONFIG" >> "$GITHUB_ENV"
+          cat "$GITHUB_WORKSPACE/meson-mingw.ini"
 
+      # ============================================================
+      # VERIFY CROSS FILE
+      # ============================================================
+
+      - name: Verify cross file
+        run: |
+          test -f "$GITHUB_WORKSPACE/meson-mingw.ini"
+
+          ls -l "$GITHUB_WORKSPACE/meson-mingw.ini"
+
+      # ============================================================
+      # CONFIGURE PKG-CONFIG
+      # ============================================================
+
+      - name: Configure pkg-config
+        run: |
           echo "PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" >> "$GITHUB_ENV"
+
+          echo "PKG_CONFIG_LIBDIR=$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" >> "$GITHUB_ENV"
 
       # ============================================================
       # BUILD JG
@@ -110,8 +118,6 @@ jobs:
 
       - name: Clone JG
         run: |
-          rm -rf "$JG_SOURCE"
-
           git clone \
             --depth 1 \
             https://gitlab.com/jgemu/jg.git \
@@ -140,12 +146,21 @@ jobs:
             RANLIB=x86_64-w64-mingw32-ranlib \
             STRIP=x86_64-w64-mingw32-strip
 
+      # ============================================================
+      # VERIFY JG
+      # ============================================================
+
       - name: Verify JG
         run: |
-          find "$PREFIX" -name "jg.pc" -print
+          echo "JG pkg-config files:"
 
-          PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" \
-            pkg-config --modversion jg
+          find "$PREFIX" \
+            -name "jg.pc" \
+            -print
+
+          pkg-config --modversion jg
+
+          pkg-config --cflags jg
 
       # ============================================================
       # BUILD LIBEPOXY
@@ -153,8 +168,6 @@ jobs:
 
       - name: Clone libepoxy
         run: |
-          rm -rf "$EPOXY_SOURCE"
-
           git clone \
             --depth 1 \
             https://github.com/anholt/libepoxy.git \
@@ -174,14 +187,29 @@ jobs:
           meson compile \
             -C build
 
+          meson install \
+            -C build
+
+      # ============================================================
+      # VERIFY EPOXY
+      # ============================================================
+
+      - name: Verify libepoxy
+        run: |
+          echo "Searching for epoxy.pc..."
+
+          find "$PREFIX" \
+            -name "epoxy.pc" \
+            -print
+
+          pkg-config --modversion epoxy
+
       # ============================================================
       # BUILD SDL3
       # ============================================================
 
       - name: Clone SDL3
         run: |
-          rm -rf "$SDL_SOURCE"
-
           git clone \
             --depth 1 \
             https://github.com/libsdl-org/SDL.git \
@@ -207,11 +235,31 @@ jobs:
             -DSDL_SHARED=ON \
             -DSDL_STATIC=OFF
 
-          cmake \
-            --build build
+          cmake --build build
+          cmake --install build
 
-          cmake \
-            --install build
+      # ============================================================
+      # VERIFY SDL3
+      # ============================================================
+
+      - name: Verify SDL3
+        run: |
+          echo "SDL3 headers:"
+
+          find "$PREFIX/include" \
+            -path "*SDL3/SDL.h" \
+            -print
+
+          echo
+          echo "SDL3 pkg-config:"
+
+          find "$PREFIX" \
+            -name "sdl3.pc" \
+            -print
+
+          pkg-config --modversion sdl3
+
+          pkg-config --cflags sdl3
 
       # ============================================================
       # BUILD SPEEXDSP
@@ -219,8 +267,6 @@ jobs:
 
       - name: Clone SpeexDSP
         run: |
-          rm -rf "$SPEEX_SOURCE"
-
           git clone \
             --depth 1 \
             https://gitlab.com/freedesktop-sdk/mirrors/xiph/speexdsp.git \
@@ -243,73 +289,56 @@ jobs:
           make install
 
       # ============================================================
-      # SHOW ALL PC FILES
+      # VERIFY SPEEXDSP
       # ============================================================
 
-      - name: Verify dependency packages
+      - name: Verify SpeexDSP
         run: |
-          echo "=========================================="
-          echo "PKG-CONFIG FILES"
-          echo "=========================================="
+          echo "SpeexDSP pkg-config:"
 
           find "$PREFIX" \
-            -name "*.pc" \
-            -print | sort
+            -name "speexdsp.pc" \
+            -print
 
-          echo
-          echo "=========================================="
-          echo "JG"
-          echo "=========================================="
-
-          PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" \
-            pkg-config --modversion jg
-
-          echo
-          echo "=========================================="
-          echo "EPOXY"
-          echo "=========================================="
-
-          PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" \
-            pkg-config --modversion epoxy
-
-          echo
-          echo "=========================================="
-          echo "SDL3"
-          echo "=========================================="
-
-          PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" \
-            pkg-config --modversion sdl3
-
-          echo
-          echo "=========================================="
-          echo "SPEEXDSP"
-          echo "=========================================="
-
-          PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" \
-            pkg-config --modversion speexdsp
+          pkg-config --modversion speexdsp
 
       # ============================================================
-      # DISPLAY FLAGS
+      # SHOW ALL DEPENDENCIES
       # ============================================================
 
-      - name: Show dependency flags
+      - name: Verify all dependencies
         run: |
-          export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig"
+          echo "======================================"
+          echo "JG"
+          echo "======================================"
 
-          echo "JG:"
-          pkg-config --cflags --libs jg
+          pkg-config --modversion jg
+          pkg-config --cflags jg
+          pkg-config --libs jg
 
-          echo
-          echo "EPOXY:"
-          pkg-config --cflags --libs epoxy
+          echo "======================================"
+          echo "EPOXY"
+          echo "======================================"
 
-          echo
-          echo "SDL3:"
-          pkg-config --cflags --libs sdl3
+          pkg-config --modversion epoxy
+          pkg-config --cflags epoxy
+          pkg-config --libs epoxy
 
-          echo
-          echo "SPEEXDSP:"
-          pkg-config --cflags --libs speexdsp
+          echo "======================================"
+          echo "SDL3"
+          echo "======================================"
+
+          pkg-config --modversion sdl3
+          pkg-config --cflags sdl3
+          pkg-config --libs sdl3
+
+          echo "======================================"
+          echo "SPEEXDSP"
+          echo "======================================"
+
+          pkg-config --modversion speexdsp
+          pkg-config --cflags speexdsp
+          pkg-config --libs speexdsp
 
       # ============================================================
       # CLEAN JOLLYGOOD
@@ -337,28 +366,18 @@ jobs:
           PKG_CONFIG_PATH: ${{ github.workspace }}/local/lib/pkgconfig:${{ github.workspace }}/local/share/pkgconfig
 
         run: |
-          echo "=========================================="
+          echo "======================================"
           echo "BUILD JOLLYGOOD"
-          echo "=========================================="
+          echo "======================================"
 
-          echo "JG:"
           pkg-config --modversion jg
-
-          echo "EPOXY:"
           pkg-config --modversion epoxy
-
-          echo "SDL3:"
           pkg-config --modversion sdl3
-
-          echo "SPEEXDSP:"
           pkg-config --modversion speexdsp
 
           echo
-          echo "SDL3 headers:"
-          find "$PREFIX/include/SDL3" -maxdepth 1 -type f | head -20
-
-          echo
-          echo "Starting make..."
+          echo "SDL3 header:"
+          test -f "$PREFIX/include/SDL3/SDL.h"
 
           make \
             CC="$CC" \
@@ -370,14 +389,12 @@ jobs:
             PKG_CONFIG="$PKG_CONFIG"
 
       # ============================================================
-      # FIND JOLLYGOOD
+      # FIND EXECUTABLE
       # ============================================================
 
-      - name: Locate Jollygood
+      - name: Find Jollygood executable
         run: |
-          echo "=========================================="
-          echo "SEARCHING FOR JOLLYGOOD"
-          echo "=========================================="
+          echo "Searching..."
 
           find . \
             -type f \
@@ -389,10 +406,10 @@ jobs:
             -print
 
       # ============================================================
-      # VERIFY WINDOWS EXE
+      # VERIFY
       # ============================================================
 
-      - name: Verify executable
+      - name: Verify Windows executable
         run: |
           EXE="$(find . -type f -iname 'jollygood.exe' | head -n 1)"
 
@@ -401,19 +418,19 @@ jobs:
           fi
 
           if [ -z "$EXE" ]; then
-            echo "ERROR: jollygood.exe was not created."
+            echo "ERROR: jollygood.exe was not produced."
             exit 1
           fi
 
-          echo "Found:"
-          echo "$EXE"
+          echo "======================================"
+          echo "FOUND JOLLYGOOD"
+          echo "======================================"
 
-          echo
-          echo "FILE:"
           file "$EXE"
 
           echo
-          echo "DLL DEPENDENCIES:"
+          echo "DLL dependencies:"
+
           x86_64-w64-mingw32-objdump -p "$EXE" |
             grep "DLL Name" || true
 
@@ -422,12 +439,12 @@ jobs:
           cp "$EXE" artifact/jollygood.exe
 
       # ============================================================
-      # COPY DLLS
+      # COLLECT DLLS
       # ============================================================
 
-      - name: Collect runtime DLLs
+      - name: Collect Windows DLLs
         run: |
-          echo "Collecting DLLs..."
+          echo "Collecting dependency DLLs..."
 
           find "$PREFIX/bin" \
             -type f \
@@ -451,15 +468,9 @@ jobs:
             fi
           done
 
-      # ============================================================
-      # FINAL ARTIFACT
-      # ============================================================
-
-      - name: Show final artifact
-        run: |
-          echo "=========================================="
-          echo "FINAL JOLLYGOOD PACKAGE"
-          echo "=========================================="
+          echo "======================================"
+          echo "ARTIFACT"
+          echo "======================================"
 
           ls -lah artifact/
 
