@@ -9,13 +9,16 @@ on:
 
 jobs:
   build-windows:
-    name: Build Jollygood Windows x64
+    name: Jollygood Windows x64
     runs-on: ubuntu-22.04
 
     env:
       PREFIX: ${{ github.workspace }}/local
       JG_SOURCE: ${{ github.workspace }}/jg
-      JGRF_SOURCE: ${{ github.workspace }}/jgrf
+      EPOXY_SOURCE: ${{ github.workspace }}/epoxy
+      SDL_SOURCE: ${{ github.workspace }}/SDL
+      SPEEX_SOURCE: ${{ github.workspace }}/speexdsp
+
       HOST: x86_64-w64-mingw32
 
     steps:
@@ -28,66 +31,84 @@ jobs:
         uses: actions/checkout@v4
 
       # ============================================================
-      # INSTALL BUILD TOOLS
+      # HOST BUILD DEPENDENCIES
       # ============================================================
 
-      - name: Install build dependencies
+      - name: Install build tools
         run: |
           sudo apt-get update
 
           sudo apt-get install -y \
             build-essential \
+            git \
             make \
             pkg-config \
-            git \
             autoconf \
             automake \
             libtool \
+            cmake \
+            ninja-build \
+            meson \
+            python3 \
+            python3-pip \
             mingw-w64 \
             gcc-mingw-w64-x86-64 \
             g++-mingw-w64-x86-64 \
-            binutils-mingw-w64-x86-64 \
-            mingw-w64-tools \
-            nsis
+            binutils-mingw-w64-x86-64
 
       # ============================================================
-      # SHOW ENVIRONMENT
+      # CREATE PREFIX
       # ============================================================
 
-      - name: Show build environment
-        run: |
-          echo "Workspace:"
-          echo "$GITHUB_WORKSPACE"
-
-          echo "Prefix:"
-          echo "$PREFIX"
-
-          echo "JG source:"
-          echo "$JG_SOURCE"
-
-          echo "Compiler:"
-          x86_64-w64-mingw32-gcc --version
-
-          echo "C++ compiler:"
-          x86_64-w64-mingw32-g++ --version
-
-      # ============================================================
-      # CREATE DIRECTORIES
-      # ============================================================
-
-      - name: Create build directories
+      - name: Create installation prefix
         run: |
           mkdir -p "$PREFIX/bin"
-          mkdir -p "$PREFIX/lib"
           mkdir -p "$PREFIX/include"
+          mkdir -p "$PREFIX/lib"
           mkdir -p "$PREFIX/lib/pkgconfig"
           mkdir -p "$PREFIX/share/pkgconfig"
 
       # ============================================================
-      # CLONE JG
+      # CROSS COMPILER
       # ============================================================
 
-      - name: Clone Jolly Good API
+      - name: Verify MinGW
+        run: |
+          x86_64-w64-mingw32-gcc --version
+          x86_64-w64-mingw32-g++ --version
+          x86_64-w64-mingw32-ar --version
+          x86_64-w64-mingw32-ranlib --version
+          x86_64-w64-mingw32-strip --version
+
+      # ============================================================
+      # CROSS PKG-CONFIG
+      # ============================================================
+
+      - name: Configure cross pkg-config
+        run: |
+          CROSS_PKG_CONFIG="$GITHUB_WORKSPACE/cross-pkg-config"
+
+          cat > "$CROSS_PKG_CONFIG" <<'EOF'
+          #!/bin/sh
+
+          export PKG_CONFIG_PATH="$GITHUB_WORKSPACE/local/lib/pkgconfig:$GITHUB_WORKSPACE/local/share/pkgconfig"
+          export PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/local/lib/pkgconfig:$GITHUB_WORKSPACE/local/share/pkgconfig"
+          export PKG_CONFIG_SYSROOT_DIR=""
+
+          exec pkg-config "$@"
+          EOF
+
+          chmod +x "$CROSS_PKG_CONFIG"
+
+          echo "CROSS_PKG_CONFIG=$CROSS_PKG_CONFIG" >> "$GITHUB_ENV"
+
+          echo "PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" >> "$GITHUB_ENV"
+
+      # ============================================================
+      # BUILD JG
+      # ============================================================
+
+      - name: Clone JG
         run: |
           rm -rf "$JG_SOURCE"
 
@@ -96,43 +117,9 @@ jobs:
             https://gitlab.com/jgemu/jg.git \
             "$JG_SOURCE"
 
-          echo "JG source:"
-          ls -la "$JG_SOURCE"
-
-      # ============================================================
-      # CHECK JG MAKEFILE
-      # ============================================================
-
-      - name: Inspect JG
-        run: |
-          cd "$JG_SOURCE"
-
-          echo "======================================"
-          echo "JG DIRECTORY"
-          echo "======================================"
-
-          pwd
-          ls -la
-
-          echo "======================================"
-          echo "JG MAKEFILE"
-          echo "======================================"
-
-          if [ -f Makefile ]; then
-            sed -n '1,260p' Makefile
-          else
-            echo "No Makefile found."
-          fi
-
-      # ============================================================
-      # BUILD JG
-      # ============================================================
-
       - name: Build JG
         run: |
           cd "$JG_SOURCE"
-
-          echo "Building JG..."
 
           make clean || true
 
@@ -142,15 +129,9 @@ jobs:
             RANLIB=x86_64-w64-mingw32-ranlib \
             STRIP=x86_64-w64-mingw32-strip
 
-      # ============================================================
-      # INSTALL JG
-      # ============================================================
-
       - name: Install JG
         run: |
           cd "$JG_SOURCE"
-
-          echo "Installing JG..."
 
           make install \
             PREFIX="$PREFIX" \
@@ -159,78 +140,176 @@ jobs:
             RANLIB=x86_64-w64-mingw32-ranlib \
             STRIP=x86_64-w64-mingw32-strip
 
-      # ============================================================
-      # FIND JG FILES
-      # ============================================================
-
-      - name: Find JG installation
+      - name: Verify JG
         run: |
-          echo "======================================"
-          echo "JG INSTALLATION"
-          echo "======================================"
-
-          find "$PREFIX" \
-            -maxdepth 5 \
-            -type f \
-            -print | sort
-
-          echo "======================================"
-          echo "SEARCHING FOR jg.pc"
-          echo "======================================"
-
-          find "$PREFIX" \
-            -name "jg.pc" \
-            -print
-
-      # ============================================================
-      # CONFIGURE PKG-CONFIG
-      # ============================================================
-
-      - name: Configure pkg-config
-        run: |
-          echo "PKG_CONFIG_PATH=$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" >> "$GITHUB_ENV"
-
-          echo "PATH=$PREFIX/bin:$PATH" >> "$GITHUB_ENV"
-
-          echo "Configured:"
-          echo "$PREFIX/lib/pkgconfig"
-          echo "$PREFIX/share/pkgconfig"
-
-      # ============================================================
-      # VERIFY JG
-      # ============================================================
-
-      - name: Verify JG pkg-config
-        run: |
-          echo "======================================"
-          echo "PKG_CONFIG_PATH"
-          echo "======================================"
-
-          echo "$PKG_CONFIG_PATH"
-
-          echo "======================================"
-          echo "JG PC FILE"
-          echo "======================================"
-
           find "$PREFIX" -name "jg.pc" -print
 
-          echo "======================================"
-          echo "PKG-CONFIG SEARCH"
-          echo "======================================"
+          PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" \
+            pkg-config --modversion jg
 
-          pkg-config --debug --modversion jg
+      # ============================================================
+      # BUILD LIBEPOXY
+      # ============================================================
 
-          echo "======================================"
-          echo "JG CFLAGS"
-          echo "======================================"
+      - name: Clone libepoxy
+        run: |
+          rm -rf "$EPOXY_SOURCE"
 
-          pkg-config --cflags jg
+          git clone \
+            --depth 1 \
+            https://github.com/anholt/libepoxy.git \
+            "$EPOXY_SOURCE"
 
-          echo "======================================"
-          echo "JG LIBS"
-          echo "======================================"
+      - name: Build libepoxy
+        run: |
+          cd "$EPOXY_SOURCE"
 
-          pkg-config --libs jg
+          rm -rf build
+
+          meson setup build \
+            --cross-file "$GITHUB_WORKSPACE/meson-mingw.ini" \
+            --prefix="$PREFIX" \
+            -Dtests=false
+
+          meson compile \
+            -C build
+
+      # ============================================================
+      # BUILD SDL3
+      # ============================================================
+
+      - name: Clone SDL3
+        run: |
+          rm -rf "$SDL_SOURCE"
+
+          git clone \
+            --depth 1 \
+            https://github.com/libsdl-org/SDL.git \
+            "$SDL_SOURCE"
+
+      - name: Build SDL3
+        run: |
+          cd "$SDL_SOURCE"
+
+          rm -rf build
+
+          cmake \
+            -S . \
+            -B build \
+            -G Ninja \
+            -DCMAKE_SYSTEM_NAME=Windows \
+            -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
+            -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++ \
+            -DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+            -DSDL_TESTS=OFF \
+            -DSDL_EXAMPLES=OFF \
+            -DSDL_SHARED=ON \
+            -DSDL_STATIC=OFF
+
+          cmake \
+            --build build
+
+          cmake \
+            --install build
+
+      # ============================================================
+      # BUILD SPEEXDSP
+      # ============================================================
+
+      - name: Clone SpeexDSP
+        run: |
+          rm -rf "$SPEEX_SOURCE"
+
+          git clone \
+            --depth 1 \
+            https://gitlab.com/freedesktop-sdk/mirrors/xiph/speexdsp.git \
+            "$SPEEX_SOURCE"
+
+      - name: Build SpeexDSP
+        run: |
+          cd "$SPEEX_SOURCE"
+
+          ./autogen.sh
+
+          ./configure \
+            --host=x86_64-w64-mingw32 \
+            --prefix="$PREFIX" \
+            --disable-shared \
+            --enable-static
+
+          make -j"$(nproc)"
+
+          make install
+
+      # ============================================================
+      # SHOW ALL PC FILES
+      # ============================================================
+
+      - name: Verify dependency packages
+        run: |
+          echo "=========================================="
+          echo "PKG-CONFIG FILES"
+          echo "=========================================="
+
+          find "$PREFIX" \
+            -name "*.pc" \
+            -print | sort
+
+          echo
+          echo "=========================================="
+          echo "JG"
+          echo "=========================================="
+
+          PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" \
+            pkg-config --modversion jg
+
+          echo
+          echo "=========================================="
+          echo "EPOXY"
+          echo "=========================================="
+
+          PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" \
+            pkg-config --modversion epoxy
+
+          echo
+          echo "=========================================="
+          echo "SDL3"
+          echo "=========================================="
+
+          PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" \
+            pkg-config --modversion sdl3
+
+          echo
+          echo "=========================================="
+          echo "SPEEXDSP"
+          echo "=========================================="
+
+          PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig" \
+            pkg-config --modversion speexdsp
+
+      # ============================================================
+      # DISPLAY FLAGS
+      # ============================================================
+
+      - name: Show dependency flags
+        run: |
+          export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig"
+
+          echo "JG:"
+          pkg-config --cflags --libs jg
+
+          echo
+          echo "EPOXY:"
+          pkg-config --cflags --libs epoxy
+
+          echo
+          echo "SDL3:"
+          pkg-config --cflags --libs sdl3
+
+          echo
+          echo "SPEEXDSP:"
+          pkg-config --cflags --libs speexdsp
 
       # ============================================================
       # CLEAN JOLLYGOOD
@@ -239,7 +318,6 @@ jobs:
       - name: Clean Jollygood
         run: |
           make clean || true
-
           rm -rf objs
           rm -rf shaders
 
@@ -256,17 +334,31 @@ jobs:
           RANLIB: x86_64-w64-mingw32-ranlib
           STRIP: x86_64-w64-mingw32-strip
           PKG_CONFIG: pkg-config
+          PKG_CONFIG_PATH: ${{ github.workspace }}/local/lib/pkgconfig:${{ github.workspace }}/local/share/pkgconfig
 
         run: |
-          echo "======================================"
+          echo "=========================================="
           echo "BUILD JOLLYGOOD"
-          echo "======================================"
+          echo "=========================================="
 
+          echo "JG:"
           pkg-config --modversion jg
 
-          pkg-config --cflags jg
+          echo "EPOXY:"
+          pkg-config --modversion epoxy
 
-          pkg-config --libs jg
+          echo "SDL3:"
+          pkg-config --modversion sdl3
+
+          echo "SPEEXDSP:"
+          pkg-config --modversion speexdsp
+
+          echo
+          echo "SDL3 headers:"
+          find "$PREFIX/include/SDL3" -maxdepth 1 -type f | head -20
+
+          echo
+          echo "Starting make..."
 
           make \
             CC="$CC" \
@@ -278,14 +370,14 @@ jobs:
             PKG_CONFIG="$PKG_CONFIG"
 
       # ============================================================
-      # FIND EXE
+      # FIND JOLLYGOOD
       # ============================================================
 
-      - name: Find executable
+      - name: Locate Jollygood
         run: |
-          echo "======================================"
-          echo "SEARCHING FOR EXECUTABLE"
-          echo "======================================"
+          echo "=========================================="
+          echo "SEARCHING FOR JOLLYGOOD"
+          echo "=========================================="
 
           find . \
             -type f \
@@ -297,10 +389,10 @@ jobs:
             -print
 
       # ============================================================
-      # VERIFY EXE
+      # VERIFY WINDOWS EXE
       # ============================================================
 
-      - name: Verify Windows executable
+      - name: Verify executable
         run: |
           EXE="$(find . -type f -iname 'jollygood.exe' | head -n 1)"
 
@@ -313,46 +405,61 @@ jobs:
             exit 1
           fi
 
-          echo "======================================"
-          echo "JOLLYGOOD FOUND"
-          echo "======================================"
-
+          echo "Found:"
           echo "$EXE"
 
+          echo
+          echo "FILE:"
           file "$EXE"
+
+          echo
+          echo "DLL DEPENDENCIES:"
+          x86_64-w64-mingw32-objdump -p "$EXE" |
+            grep "DLL Name" || true
 
           mkdir -p artifact
 
           cp "$EXE" artifact/jollygood.exe
 
       # ============================================================
-      # COLLECT MINGW DLLS
+      # COPY DLLS
       # ============================================================
 
       - name: Collect runtime DLLs
         run: |
-          echo "Collecting MinGW runtime DLLs..."
+          echo "Collecting DLLs..."
+
+          find "$PREFIX/bin" \
+            -type f \
+            -iname "*.dll" \
+            -exec cp {} artifact/ \; || true
+
+          find "$PREFIX/lib" \
+            -type f \
+            -iname "*.dll" \
+            -exec cp {} artifact/ \; || true
 
           for DLL in \
             libgcc_s_seh-1.dll \
             libstdc++-6.dll \
             libwinpthread-1.dll
           do
-
             FOUND="$(find /usr -name "$DLL" 2>/dev/null | head -n 1 || true)"
 
             if [ -n "$FOUND" ]; then
-              echo "Found $DLL:"
-              echo "$FOUND"
-
               cp "$FOUND" artifact/
             fi
-
           done
 
-          echo "======================================"
-          echo "FINAL ARTIFACT"
-          echo "======================================"
+      # ============================================================
+      # FINAL ARTIFACT
+      # ============================================================
+
+      - name: Show final artifact
+        run: |
+          echo "=========================================="
+          echo "FINAL JOLLYGOOD PACKAGE"
+          echo "=========================================="
 
           ls -lah artifact/
 
